@@ -46,12 +46,12 @@ export async function launchReviewSubagentsIfAvailable(input: {
 
   const requestId = `deepwork-review-${randomUUID()}`;
   const reviews = input.tasks.map(toLaunchedReview);
-  const timeoutMs = input.timeoutMs ?? 100;
+  const timeoutMs = input.timeoutMs ?? 2_000;
+  const unavailableTimeoutMs = Math.min(timeoutMs, 150);
 
   return new Promise((resolve) => {
     const unsubscribers: Array<() => void> = [];
     let settled = false;
-    let started = false;
 
     const cleanup = () => {
       clearTimeout(timeout);
@@ -70,19 +70,21 @@ export async function launchReviewSubagentsIfAvailable(input: {
       if (typeof unsubscribe === "function") unsubscribers.push(unsubscribe);
     };
 
-    const timeout = setTimeout(() => {
+    let timeout = setTimeout(() => {
       finish({
         requestId,
-        status: started ? "started" : "unavailable",
-        reviews: started ? reviews : [],
-        ...(started ? {} : { error: "pi-subagents slash bridge did not acknowledge the launch request." }),
+        status: "unavailable",
+        reviews: [],
+        error: "pi-subagents slash bridge did not acknowledge the launch request.",
       });
-    }, timeoutMs);
+    }, unavailableTimeoutMs);
 
     subscribe(SLASH_SUBAGENT_STARTED_EVENT, (data) => {
       if (!matchesRequest(data, requestId)) return;
-      started = true;
-      finish({ requestId, status: "started", reviews });
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        finish({ requestId, status: "started", reviews });
+      }, timeoutMs);
     });
 
     subscribe(SLASH_SUBAGENT_RESPONSE_EVENT, (data) => {

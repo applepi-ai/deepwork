@@ -200,6 +200,7 @@ async function loadHarness(options: { reviewInstructions?: string; parsedTasks?:
       if (event === "subagent:slash:request" && options.subagentsStarted) {
         const requestId = (data as { requestId?: string }).requestId;
         for (const handler of handlers.get("subagent:slash:started") ?? []) handler({ requestId });
+        for (const handler of handlers.get("subagent:slash:response") ?? []) handler({ requestId, isError: false });
       }
       for (const handler of handlers.get(event) ?? []) handler(data);
     }),
